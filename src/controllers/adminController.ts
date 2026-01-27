@@ -17,8 +17,8 @@ export const createUser = async (req: Request, res: Response) => {
       email,
       password: hashedPassword,
       role: "user",
-      balance,
-      coins,
+      balance: balance || 0,
+      coins: coins || [],
     });
 
     res.status(201).json({
@@ -28,7 +28,38 @@ export const createUser = async (req: Request, res: Response) => {
         email: user.email,
       },
     });
-  } catch (err) {
+  } catch (error) {
     res.status(500).json({ message: "Failed to create user" });
+  }
+};
+
+export const assignCoinToUser = async (req: Request, res: Response) => {
+  try {
+    const { userId, name, symbol, amount, valueUsd } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const existingCoin = user.coins.find(
+      (coin: any) => coin.symbol === symbol
+    );
+
+    if (existingCoin) {
+      existingCoin.amount = amount;
+      existingCoin.valueUsd = valueUsd;
+    } else {
+      user.coins.push({ name, symbol, amount, valueUsd });
+    }
+
+    await user.save();
+
+    res.json({
+      message: "Coin assigned successfully",
+      coins: user.coins,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to assign coin" });
   }
 };
