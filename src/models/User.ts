@@ -16,8 +16,14 @@ const userSchema = new mongoose.Schema(
       enum: ["admin", "user"],
       default: "user",
     },
-    balance: { type: Number, default: 0 },
-    coins: { type: [coinSchema], default: [] },
+    balance: {
+      type: Number,
+      default: 0, // ADMIN controls this
+    },
+    coins: {
+      type: [coinSchema],
+      default: [],
+    },
   },
   { timestamps: true }
 );
