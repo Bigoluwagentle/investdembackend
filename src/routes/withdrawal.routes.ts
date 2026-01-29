@@ -1,18 +1,21 @@
-import express from "express";
+import { Router } from "express";
 import {
-  requestWithdrawal,
+  createWithdrawal,
   getAllWithdrawals,
   approveWithdrawal,
   rejectWithdrawal,
-} from "../controllers/withdrawal.controller";
+} from "../controllers/withdrawalController";
+
 import { protect, adminOnly } from "../middleware/authMiddleware";
 
-const router = express.Router();
+const router = Router();
 
-router.post("/", protect, requestWithdrawal);
+router.post("/", protect, createWithdrawal);
 
 router.get("/", protect, adminOnly, getAllWithdrawals);
+
 router.patch("/:id/approve", protect, adminOnly, approveWithdrawal);
+
 router.patch("/:id/reject", protect, adminOnly, rejectWithdrawal);
 
 export default router;

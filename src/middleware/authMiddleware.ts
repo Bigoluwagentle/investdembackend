@@ -1,9 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 
-/* =======================
-   Custom Auth Request
-======================= */
 export interface AuthRequest extends Request {
   user?: {
     id: string;
@@ -11,14 +8,6 @@ export interface AuthRequest extends Request {
   };
 }
 
-interface JwtPayload {
-  id: string;
-  role: "admin" | "user";
-}
-
-/* =======================
-   Protect Middleware
-======================= */
 export const protect = (
   req: AuthRequest,
   res: Response,
@@ -30,13 +19,16 @@ export const protect = (
     return res.status(401).json({ message: "Not authorized" });
   }
 
-  const token = authHeader.split(" ")[1];
-
   try {
+    const token = authHeader.split(" ")[1];
+
     const decoded = jwt.verify(
       token,
       process.env.JWT_SECRET as string
-    ) as JwtPayload;
+    ) as {
+      id: string;
+      role: "admin" | "user";
+    };
 
     req.user = {
       id: decoded.id,
@@ -44,20 +36,17 @@ export const protect = (
     };
 
     next();
-  } catch {
+  } catch (error) {
     return res.status(401).json({ message: "Invalid token" });
   }
 };
 
-/* =======================
-   Admin Only Middleware
-======================= */
 export const adminOnly = (
   req: AuthRequest,
   res: Response,
   next: NextFunction
 ) => {
-  if (!req.user || req.user.role !== "admin") {
+  if (req.user?.role !== "admin") {
     return res.status(403).json({ message: "Admin access only" });
   }
 
