@@ -1,10 +1,11 @@
-import { Types } from "mongoose";
+import "express";
 
 declare global {
   namespace Express {
     interface UserPayload {
-      id: Types.ObjectId | string;
-      role: "admin" | "user";
+      id: string;
+      role: "user" | "admin";
+      email?: string;
     }
 
     interface Request {

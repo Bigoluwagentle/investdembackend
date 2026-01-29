@@ -3,9 +3,9 @@ import Withdrawal from "../models/Withdrawal";
 import User from "../models/User";
 
 /**
- * USER: Request withdrawal
+ * USER: Create withdrawal request
  */
-export const requestWithdrawal = async (req: Request, res: Response) => {
+export const createWithdrawal = async (req: Request, res: Response) => {
   try {
     const userId = req.user!.id;
 
@@ -15,16 +15,13 @@ export const requestWithdrawal = async (req: Request, res: Response) => {
       accountName,
       accountNumber,
       accountType,
-      country,
       bankCode,
+      country,
       narration,
     } = req.body;
 
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    if (amount > user.balance) {
-      return res.status(400).json({ message: "Insufficient balance" });
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ message: "Invalid withdrawal amount" });
     }
 
     const withdrawal = await Withdrawal.create({
@@ -34,17 +31,17 @@ export const requestWithdrawal = async (req: Request, res: Response) => {
       accountName,
       accountNumber,
       accountType,
-      country,
       bankCode,
+      country,
       narration,
     });
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Withdrawal request submitted",
       withdrawal,
     });
   } catch (error) {
-    res.status(500).json({ message: "Failed to request withdrawal" });
+    return res.status(500).json({ message: "Server error", error });
   }
 };
 
@@ -54,12 +51,12 @@ export const requestWithdrawal = async (req: Request, res: Response) => {
 export const getAllWithdrawals = async (_req: Request, res: Response) => {
   try {
     const withdrawals = await Withdrawal.find()
-      .populate("user", "email balance")
+      .populate("user", "email")
       .sort({ createdAt: -1 });
 
     res.json(withdrawals);
   } catch (error) {
-    res.status(500).json({ message: "Failed to fetch withdrawals" });
+    res.status(500).json({ message: "Server error", error });
   }
 };
 
@@ -75,31 +72,20 @@ export const approveWithdrawal = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Withdrawal not found" });
     }
 
-    if (withdrawal.status !== "pending") {
-      return res.status(400).json({ message: "Already processed" });
-    }
-
-    const user = await User.findById(withdrawal.user);
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    if (withdrawal.amount > user.balance) {
-      return res.status(400).json({ message: "User balance insufficient" });
-    }
-
-    user.balance -= withdrawal.amount;
-    await user.save();
-
     withdrawal.status = "approved";
+    withdrawal.reviewedAt = new Date();
+    withdrawal.rejectionReason = undefined;
+
     await withdrawal.save();
 
-    res.json({ message: "Withdrawal approved" });
+    res.json({ message: "Withdrawal approved", withdrawal });
   } catch (error) {
-    res.status(500).json({ message: "Failed to approve withdrawal" });
+    res.status(500).json({ message: "Server error", error });
   }
 };
 
 /**
- * ADMIN: Reject withdrawal (REASON REQUIRED)
+ * ADMIN: Reject withdrawal
  */
 export const rejectWithdrawal = async (req: Request, res: Response) => {
   try {
@@ -107,7 +93,7 @@ export const rejectWithdrawal = async (req: Request, res: Response) => {
     const { reason } = req.body;
 
     if (!reason) {
-      return res.status(400).json({ message: "Rejection reason is required" });
+      return res.status(400).json({ message: "Rejection reason required" });
     }
 
     const withdrawal = await Withdrawal.findById(id);
@@ -115,16 +101,14 @@ export const rejectWithdrawal = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Withdrawal not found" });
     }
 
-    if (withdrawal.status !== "pending") {
-      return res.status(400).json({ message: "Already processed" });
-    }
-
     withdrawal.status = "rejected";
     withdrawal.rejectionReason = reason;
+    withdrawal.reviewedAt = new Date();
+
     await withdrawal.save();
 
-    res.json({ message: "Withdrawal rejected with reason" });
+    res.json({ message: "Withdrawal rejected", withdrawal });
   } catch (error) {
-    res.status(500).json({ message: "Failed to reject withdrawal" });
+    res.status(500).json({ message: "Server error", error });
   }
 };
