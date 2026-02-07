@@ -1,65 +1,50 @@
-import { Response } from "express";
-import { AuthRequest } from "../middleware/authMiddleware";
+import { Request, Response } from "express";
 import Withdrawal from "../models/Withdrawal";
 import User from "../models/User";
 
-// User creates withdrawal
-export const createWithdrawal = async (
-  req: AuthRequest,
-  res: Response
-) => {
-  try {
-    const userId = req.user!.id;
+export const createWithdrawal = async (req: Request, res: Response) => {
+  const userId = req.user!.id;
+  const { amount, ...bankDetails } = req.body;
 
-    const {
-      amount,
-      bankName,
-      accountName,
-      accountNumber,
-      accountType,
-      bankCode,
-      country,
-      narration,
-    } = req.body;
+  const user = await User.findById(userId);
+  if (!user) return res.status(404).json({ message: "User not found" });
 
-    const withdrawal = await Withdrawal.create({
-      user: userId,
-      amount,
-      bankName,
-      accountName,
-      accountNumber,
-      accountType,
-      bankCode,
-      country,
-      narration,
-      status: "pending",
-    });
-
-    res.status(201).json(withdrawal);
-  } catch (error) {
-    res.status(500).json({ message: "Failed to create withdrawal" });
+  if (user.balance < amount) {
+    return res.status(400).json({ message: "Insufficient balance" });
   }
+
+  const withdrawal = await Withdrawal.create({
+    user: userId,
+    amount,
+    ...bankDetails,
+  });
+
+  res.status(201).json(withdrawal);
 };
 
-// Admin: get all withdrawals
-export const getAllWithdrawals = async (
-  req: AuthRequest,
-  res: Response
-) => {
+/* ================= ADMIN ================= */
+export const getAllWithdrawals = async (_req: Request, res: Response) => {
   const withdrawals = await Withdrawal.find().populate("user", "email");
   res.json(withdrawals);
 };
 
-// Admin approves withdrawal
-export const approveWithdrawal = async (
-  req: AuthRequest,
-  res: Response
-) => {
+export const approveWithdrawal = async (req: Request, res: Response) => {
   const withdrawal = await Withdrawal.findById(req.params.id);
+  if (!withdrawal) return res.status(404).json({ message: "Not found" });
 
-  if (!withdrawal) {
-    return res.status(404).json({ message: "Withdrawal not found" });
+  if (withdrawal.status !== "pending") {
+    return res.status(400).json({ message: "Already processed" });
   }
+
+  const user = await User.findById(withdrawal.user);
+  if (!user) return res.status(404).json({ message: "User not found" });
+
+  if (user.balance < withdrawal.amount) {
+    return res.status(400).json({ message: "User balance insufficient" });
+  }
+
+  user.balance -= withdrawal.amount;
+  await user.save();
 
   withdrawal.status = "approved";
   withdrawal.reviewedAt = new Date();
@@ -68,22 +53,16 @@ export const approveWithdrawal = async (
   res.json({ message: "Withdrawal approved" });
 };
 
-// Admin rejects withdrawal
-export const rejectWithdrawal = async (
-  req: AuthRequest,
-  res: Response
-) => {
+export const rejectWithdrawal = async (req: Request, res: Response) => {
   const { reason } = req.body;
 
   const withdrawal = await Withdrawal.findById(req.params.id);
-
-  if (!withdrawal) {
-    return res.status(404).json({ message: "Withdrawal not found" });
-  }
+  if (!withdrawal) return res.status(404).json({ message: "Not found" });
 
   withdrawal.status = "rejected";
   withdrawal.rejectionReason = reason;
   withdrawal.reviewedAt = new Date();
+
   await withdrawal.save();
 
   res.json({ message: "Withdrawal rejected" });
