@@ -1,31 +1,20 @@
-import mongoose from "mongoose";
+import mongoose, { Schema, Document } from "mongoose";
 
-const coinSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  symbol: { type: String, required: true },
-  amount: { type: Number, required: true },
-  valueUsd: { type: Number, required: true },
-});
+export interface IUser extends Document {
+  email: string;
+  password: string;
+  role: "admin" | "user";
+  balance: number;
+}
 
-const userSchema = new mongoose.Schema(
+const UserSchema = new Schema<IUser>(
   {
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    role: {
-      type: String,
-      enum: ["admin", "user"],
-      default: "user",
-    },
-    balance: {
-      type: Number,
-      default: 0, // ADMIN controls this
-    },
-    coins: {
-      type: [coinSchema],
-      default: [],
-    },
+    role: { type: String, enum: ["admin", "user"], default: "user" },
+    balance: { type: Number, default: 0 },
   },
   { timestamps: true }
 );
 
-export default mongoose.model("User", userSchema);
+export default mongoose.model<IUser>("User", UserSchema);
