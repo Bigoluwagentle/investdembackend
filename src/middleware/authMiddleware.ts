@@ -1,53 +1,62 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import User from "../models/User";
 
+/* ===== EXTEND REQUEST TYPE ===== */
 export interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    role: "admin" | "user";
-  };
+  user?: any;
 }
 
-export const protect = (
+/* ===== PROTECT MIDDLEWARE ===== */
+export const protect = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
 ) => {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ message: "Not authorized" });
-  }
-
   try {
-    const token = authHeader.split(" ")[1];
+    let token: string | undefined;
 
-    const decoded = jwt.verify(
+    if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith("Bearer")
+    ) {
+      token = req.headers.authorization.split(" ")[1];
+    }
+
+    if (!token) {
+      return res.status(401).json({ message: "Not authorized, no token" });
+    }
+
+    const decoded: any = jwt.verify(
       token,
       process.env.JWT_SECRET as string
-    ) as {
-      id: string;
-      role: "admin" | "user";
-    };
+    );
 
-    req.user = {
-      id: decoded.id,
-      role: decoded.role,
-    };
+    const user = await User.findById(decoded.id).select("-password");
 
+    if (!user) {
+      return res.status(401).json({ message: "User not found" });
+    }
+
+    req.user = user;
     next();
   } catch (error) {
-    return res.status(401).json({ message: "Invalid token" });
+    return res.status(401).json({ message: "Not authorized" });
   }
 };
 
-export const adminOnly = (
+/* ===== ADMIN MIDDLEWARE ===== */
+export const admin = (
   req: AuthRequest,
   res: Response,
   next: NextFunction
 ) => {
-  if (req.user?.role !== "admin") {
-    return res.status(403).json({ message: "Admin access only" });
+  if (!req.user) {
+    return res.status(401).json({ message: "Not authorized" });
+  }
+
+  if (req.user.role !== "admin") {
+    return res.status(403).json({ message: "Admin only access" });
   }
 
   next();
