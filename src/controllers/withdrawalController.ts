@@ -2,114 +2,126 @@ import { Request, Response } from "express";
 import Withdrawal from "../models/Withdrawal";
 import User from "../models/User";
 
-/* ===== CREATE WITHDRAWAL (USER) ===== */
-export const createWithdrawal = async (
-  req: Request,
-  res: Response
-) => {
+export const createWithdrawal = async (req: any, res: Response) => {
   try {
-    const userId = (req as any).user.id;
+    const { amount } = req.body;
 
-    const {
-      amount,
-      bankName,
-      accountName,
-      accountNumber,
-      accountType,
-      bankCode,
-      country,
-      narration,
-    } = req.body;
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ message: "Invalid amount" });
+    }
 
-    const user = await User.findById(userId);
-    if (!user) return res.status(404).json({ message: "User not found" });
+    const user = await User.findById(req.user._id);
 
-    if (amount > user.balance)
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.balance < amount) {
       return res.status(400).json({ message: "Insufficient balance" });
+    }
 
     const withdrawal = await Withdrawal.create({
-      user: userId,
+      user: user._id,
       amount,
-      bankName,
-      accountName,
-      accountNumber,
-      accountType,
-      bankCode,
-      country,
-      narration,
+      status: "pending",
     });
 
     res.status(201).json(withdrawal);
-  } catch (err) {
+  } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
 };
 
-/* ===== GET ALL WITHDRAWALS (ADMIN) ===== */
-export const getAllWithdrawals = async (
-  req: Request,
-  res: Response
-) => {
-  const withdrawals = await Withdrawal.find()
-    .populate("user", "email")
-    .sort({ createdAt: -1 });
 
-  res.json(withdrawals);
+export const getUserWithdrawals = async (req: any, res: Response) => {
+  try {
+    const withdrawals = await Withdrawal.find({
+      user: req.user._id,
+    }).sort({ createdAt: -1 });
+
+    res.json(withdrawals);
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
 };
 
-/* ===== GET USER WITHDRAWALS ===== */
-export const getUserWithdrawals = async (
-  req: Request,
-  res: Response
-) => {
-  const userId = (req as any).user.id;
+export const getAllWithdrawals = async (req: Request, res: Response) => {
+  try {
+    const withdrawals = await Withdrawal.find()
+      .populate("user", "email balance")
+      .sort({ createdAt: -1 });
 
-  const withdrawals = await Withdrawal.find({ user: userId })
-    .sort({ createdAt: -1 });
-
-  res.json(withdrawals);
+    res.json(withdrawals);
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
 };
 
-/* ===== APPROVE (ADMIN) ===== */
+
 export const approveWithdrawal = async (
   req: Request,
   res: Response
 ) => {
-  const withdrawal = await Withdrawal.findById(req.params.id);
+  try {
+    const withdrawal = await Withdrawal.findById(req.params.id);
 
-  if (!withdrawal)
-    return res.status(404).json({ message: "Not found" });
+    if (!withdrawal) {
+      return res.status(404).json({ message: "Withdrawal not found" });
+    }
 
-  if (withdrawal.status !== "pending")
-    return res.status(400).json({ message: "Already processed" });
+    if (withdrawal.status !== "pending") {
+      return res.status(400).json({ message: "Already processed" });
+    }
 
-  const user = await User.findById(withdrawal.user);
-  if (!user) return res.status(404).json({ message: "User not found" });
+    const user = await User.findById(withdrawal.user);
 
-  user.balance -= withdrawal.amount;
-  await user.save();
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
-  withdrawal.status = "approved";
-  await withdrawal.save();
+    if (user.balance < withdrawal.amount) {
+      return res
+        .status(400)
+        .json({ message: "User has insufficient balance" });
+    }
 
-  res.json({ message: "Withdrawal approved" });
+    user.balance -= withdrawal.amount;
+    await user.save();
+
+    withdrawal.status = "approved";
+    await withdrawal.save();
+
+    res.json({ message: "Withdrawal approved" });
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
 };
 
-/* ===== REJECT (ADMIN) ===== */
+
 export const rejectWithdrawal = async (
   req: Request,
   res: Response
 ) => {
-  const { reason } = req.body;
+  try {
+    const { reason } = req.body;
 
-  const withdrawal = await Withdrawal.findById(req.params.id);
+    const withdrawal = await Withdrawal.findById(req.params.id);
 
-  if (!withdrawal)
-    return res.status(404).json({ message: "Not found" });
+    if (!withdrawal) {
+      return res.status(404).json({ message: "Withdrawal not found" });
+    }
 
-  withdrawal.status = "rejected";
-  withdrawal.rejectionReason = reason;
-  await withdrawal.save();
+    if (withdrawal.status !== "pending") {
+      return res.status(400).json({ message: "Already processed" });
+    }
 
-  res.json({ message: "Withdrawal rejected" });
+    withdrawal.status = "rejected";
+    withdrawal.rejectionReason = reason || "No reason provided";
+
+    await withdrawal.save();
+
+    res.json({ message: "Withdrawal rejected" });
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
 };
