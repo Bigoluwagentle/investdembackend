@@ -1,41 +1,40 @@
-import mongoose, { Schema, Document } from "mongoose";
+import mongoose, { Document, Schema } from "mongoose";
 
 export interface IWithdrawal extends Document {
   user: mongoose.Types.ObjectId;
   amount: number;
-  bankName: string;
-  accountName: string;
-  accountNumber: string;
-  accountType: string;
-  bankCode: string;
-  country: string;
-  narration?: string;
   status: "pending" | "approved" | "rejected";
   rejectionReason?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-const WithdrawalSchema: Schema = new Schema(
+const withdrawalSchema = new Schema<IWithdrawal>(
   {
-    user: { type: Schema.Types.ObjectId, ref: "User", required: true },
-    amount: { type: Number, required: true },
-    bankName: { type: String, required: true },
-    accountName: { type: String, required: true },
-    accountNumber: { type: String, required: true },
-    accountType: { type: String, required: true },
-    bankCode: { type: String, required: true },
-    country: { type: String, required: true },
-    narration: { type: String },
+    user: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    amount: {
+      type: Number,
+      required: true,
+    },
     status: {
       type: String,
       enum: ["pending", "approved", "rejected"],
       default: "pending",
     },
-    rejectionReason: { type: String },
+    rejectionReason: {
+      type: String,
+    },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+  }
 );
 
 export default mongoose.model<IWithdrawal>(
   "Withdrawal",
-  WithdrawalSchema
+  withdrawalSchema
 );

@@ -1,6 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
 
-/* ===== Coin subdocument ===== */
 export interface ICoin {
   name: string;
   symbol: string;
@@ -8,7 +7,6 @@ export interface ICoin {
   valueUsd: number;
 }
 
-/* ===== User ===== */
 export interface IUser extends Document {
   email: string;
   password: string;
